@@ -152,31 +152,33 @@ async function getOpenAIReply(prompt) {
       "Content-Type": "application/json",
     },
     data: data,
-    timeout: 50000
+    timeout: 160000
   };
 
   try{
       const response = await axios(config);
-      if (response.status !== 200) {
-        throw new Error('API 返回异常'); // 如果接口返回状态不是 200，则抛出异常
+      if (response.status === 401) {
+        return 'API错误，换新的吧';
       }
-      return response.data.choices[0].message.content.replace("\n\n", "");    
+      if (response.status === 429) {
+        return '问题太多了，我有点眩晕，请稍后再试';
+      }  
+      return response.data.choices[0].message.content.replace("\n\n", "\n\n");
   }catch(e){
     logger(e); // 增加日志输出
     logger(e.response); // 增加日志输出
     logger(e.response.data); // 增加日志输出
-    return "问题太难了 API返回出错了. (uДu〃).";
-  }
-	if (e.response && e.response.status === 401) {
-      return 'API 错误，请检查 API 密钥是否有效';
-    } 
+    if (e.response && e.response.status === 401) {
+      return 'API key错误，请检查 API 密钥是否有效';    } 
+    else if (e.response && e.response.status === 504) {
+      return 'API服务器响应超时，请稍后再试！';    }
     else if (e.response && e.response.status === 429) {
-      return '服务器请求过于频繁，请稍后再试！';
-    } 
+      return 'API服务器请求过于频繁，请稍后重新发送！';    }
     else {
-      return '抱歉，出了点小问题，请稍后再试！';
-    }
-}
+      return '抱歉，出了点小问题，请稍后再试！';    }
+    return "太难了 服务器未知错误. (uДu〃).";}
+  }
+
 
 
 // 自检函数
