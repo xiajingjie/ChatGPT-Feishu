@@ -11,7 +11,7 @@ const FEISHU_APP_SECRET = process.env.SECRET || ""; // 飞书的应用的 Secret
 const FEISHU_BOTNAME = process.env.BOTNAME || ""; // 飞书机器人的名字
 const OPENAI_KEY = process.env.KEY || ""; // OpenAI 的 Key
 const OPENAI_MODEL = process.env.MODEL || "gpt-3.5-turbo"; // 使用的模型
-const OPENAI_MAX_TOKEN = process.env.MAX_TOKEN || 1024; // 最大 token 的值
+const OPENAI_MAX_TOKEN = process.env.MAX_TOKEN || 2048; // 最大 token 的值
 
 const client = new lark.Client({
   appId: FEISHU_APP_ID,
@@ -157,19 +157,27 @@ async function getOpenAIReply(prompt) {
 
   try{
       const response = await axios(config);
-    
-      if (response.status === 429) {
-        return '问题太多了，我有点眩晕，请稍后再试';
+      if (response.status !== 200) {
+        throw new Error('API 返回异常'); // 如果接口返回状态不是 200，则抛出异常
       }
-      // 去除多余的换行
-      return response.data.choices[0].message.content.replace("\n\n", "");
-    
+      return response.data.choices[0].message.content.replace("\n\n", "");    
   }catch(e){
-     logger(e.response.data)
-     return "问题太难了 出错了. (uДu〃).";
+    logger(e); // 增加日志输出
+    logger(e.response); // 增加日志输出
+    logger(e.response.data); // 增加日志输出
+    return "问题太难了 API返回出错了. (uДu〃).";
   }
-
+	if (e.response && e.response.status === 401) {
+      return 'API 错误，请检查 API 密钥是否有效';
+    } 
+    else if (e.response && e.response.status === 429) {
+      return '服务器请求过于频繁，请稍后再试！';
+    } 
+    else {
+      return '抱歉，出了点小问题，请稍后再试！';
+    }
 }
+
 
 // 自检函数
 async function doctor() {
