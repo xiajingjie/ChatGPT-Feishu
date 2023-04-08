@@ -1,4 +1,4 @@
-// @version 0.0.9 调整了 axios 的报错的输出，以便于调试。
+// 加入可控参数
 const aircode = require("aircode");
 const lark = require("@larksuiteoapi/node-sdk");
 var axios = require("axios");
@@ -18,7 +18,8 @@ const client = new lark.Client({
   appSecret: FEISHU_APP_SECRET,
   disableTokenCache: false,
 });
-
+let OPENAI_TEMPERATURE = 1;
+let OPENAI_TOP_P = 1;
 // 日志辅助函数，请贡献者使用此函数打印关键日志
 function logger(param) {
   console.debug(`[CF]`, param);
@@ -104,28 +105,58 @@ async function clearConversation(sessionId) {
 
 // 指令处理
 async function cmdProcess(cmdParams) {
-  switch (cmdParams && cmdParams.action) {
-    case "/help":
-      await cmdHelp(cmdParams.messageId);
-      break;
-    case "/clear": 
-      await cmdClear(cmdParams.sessionId, cmdParams.messageId);
-      break;
-    default:
-      await cmdHelp(cmdParams.messageId);
-      break;
-  }
+const [action, text] = cmdParams && cmdParams.action.split(/\s+/); // 使用正则表达式切分字符串
+switch (action) {
+  case "/help":
+    await cmdHelp(cmdParams.messageId);
+    break;
+  case "/clear":
+    await cmdClear(cmdParams.sessionId, cmdParams.messageId);
+    break;
+  case "/hot":
+    temperature = parseFloat(text.trim());
+    if (isNaN(temperature) || temperature < 0 || temperature > 1) {
+      await reply(cmdParams.messageId, `输入不合法，请输入 0 到 1 的数字`);
+    } else {
+      OPENAI_TEMPERATURE = temperature;
+      await reply(cmdParams.messageId, `温度已设置为 ${OPENAI_TEMPERATURE}`);
+      console.log(`OPENAI_TEMPERATURE has set to ${OPENAI_TEMPERATURE}`);
+    }
+    break;
+  case "/prob":
+    probability = parseFloat(text.trim());
+        if (isNaN(probability) || probability < 0 || probability > 1) {
+      await reply(cmdParams.messageId, `输入不合法，请输入 0 到 1 的数字`);
+    } else {
+      OPENAI_TOP_P = probability;
+    await reply(cmdParams.messageId, `概率已设置为 ${OPENAI_TOP_P}`);
+    console.log(`OPENAI_TOP_P has set to ${OPENAI_TOP_P}`);
+    }
+    break;
+  case "/all":
+    await reply(cmdParams.messageId, `概率已设置为 ${OPENAI_TOP_P}，温度已设置为 ${OPENAI_TEMPERATURE}。`);
+    await reply(cmdParams.messageId, );
+    break;
+  default:
+    await cmdHelp(cmdParams.messageId);
+    break;
+}
+
   return { code: 0 }
 } 
 
 // 帮助指令
 async function cmdHelp(messageId) {
-  helpText = `ChatGPT 指令使用指南
+helpText = `ChatGPT 指令使用指南
 
 Usage:
-    /clear    清除上下文
-    /help     获取更多帮助
-  `
+  /clear     清除上下文
+  /help      获取更多帮助
+  /hot NUM   设置温度参数，NUM 取值范围为 0 到 1，默认为 1。较高的值（如 0.8）将使输出更加随机，而较低的值（如 0.2）将使其更加集中和确定。
+  /prob NUM  设置概率参数，NUM 取值范围为 0 到 1，默认为 1。0.1 意味着只考虑包含前 10% 概率质量。只建议改两个参数其一。
+  /all 显示 hot和prob的现有参数。
+`
+
   await reply(messageId, helpText);
 }
 
@@ -152,9 +183,10 @@ async function getOpenAIReply(prompt) {
       "Content-Type": "application/json",
     },
     data: data,
+    temperature: OPENAI_TEMPERATURE, // 控制多样性的参数，取值范围为 0 到 1，默认为 1。较高的值（如 0.8）将使输出更加随机，而较低的值（如 0.2）将使其更加集中和确定。
+    top_p: OPENAI_TOP_P, // 控制可信度的参数，取值范围为 0 到 1，默认为 1。使用温度采样的替代方法称为核心采样，其中模型考虑具有top_p概率质量的令牌的结果。因此，0.1 意味着只考虑包含前 10% 概率质量。
     timeout: 160000
   };
-
   try{
       const response = await axios(config);
       if (response.status === 401) {
@@ -163,13 +195,13 @@ async function getOpenAIReply(prompt) {
       if (response.status === 429) {
         return '问题太多了，我有点眩晕，请稍后再试';
       }  
-      return response.data.choices[0].message.content.replace("\n\n", "\n\n");
+      return response.data.choices[0].message.content.replace("\n\n", " ");
   }catch(e){
     logger(e); // 增加日志输出
     logger(e.response); // 增加日志输出
     logger(e.response.data); // 增加日志输出
     if (e.response && e.response.status === 401) {
-      return 'API key错误，请检查 API 密钥是否有效';    } 
+      return 'API key错误，请检查 API 密钥是否有效！';    } 
     else if (e.response && e.response.status === 504) {
       return 'API服务器响应超时，请稍后再试！';    }
     else if (e.response && e.response.status === 429) {
