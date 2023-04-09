@@ -1,4 +1,3 @@
-// 加入可控参数
 const aircode = require("aircode");
 const lark = require("@larksuiteoapi/node-sdk");
 var axios = require("axios");
@@ -119,7 +118,7 @@ switch (action) {
       await reply(cmdParams.messageId, `输入不合法，请输入 0 到 1 的数字`);
     } else {
       OPENAI_TEMPERATURE = temperature;
-      await reply(cmdParams.messageId, `温度已设置为 ${OPENAI_TEMPERATURE}`);
+      await reply(cmdParams.messageId, `✅温度已设置为 ${OPENAI_TEMPERATURE}`);
       console.log(`OPENAI_TEMPERATURE has set to ${OPENAI_TEMPERATURE}`);
     }
     break;
@@ -129,7 +128,7 @@ switch (action) {
       await reply(cmdParams.messageId, `输入不合法，请输入 0 到 1 的数字`);
     } else {
       OPENAI_TOP_P = probability;
-    await reply(cmdParams.messageId, `概率已设置为 ${OPENAI_TOP_P}`);
+    await reply(cmdParams.messageId, `✅概率已设置为 ${OPENAI_TOP_P}`);
     console.log(`OPENAI_TOP_P has set to ${OPENAI_TOP_P}`);
     }
     break;
@@ -195,7 +194,7 @@ async function getOpenAIReply(prompt) {
       if (response.status === 429) {
         return '问题太多了，我有点眩晕，请稍后再试';
       }  
-      return response.data.choices[0].message.content.replace("\n\n", " ");
+      return response.data.choices[0].message.content.replace(/\n\n/g, "\n");
   }catch(e){
     logger(e); // 增加日志输出
     logger(e.response); // 增加日志输出
@@ -315,7 +314,6 @@ async function handleReply(userInput, sessionId, messageId, eventId) {
   await EventDB.save(evt_record);
   return { code: 0 };
 }
-
 module.exports = async function (params, context) {
   // 如果存在 encrypt 则说明配置了 encrypt key
   if (params.encrypt) {
